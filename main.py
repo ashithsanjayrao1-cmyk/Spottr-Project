@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from passlib.context import CryptContext
 from database import engine, get_db
 import models
+import jwt
+from datetime import datetime, timedelta, timezone
 
 
 load_dotenv()
@@ -39,6 +41,31 @@ def register_user(user: UserCreate, db: Session = Depends (get_db)):
     db.refresh(new_user)
 
     return{"message": "User created Successfully!","user_id": new_user.id}
+
+class USerLogin(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/login")
+def login_user(user: USerLogin, db: Session = Depends(get_db)):
+
+    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+
+
+    if not existing_user or not pwd_context.verify(user.password, existing_user.password_hash):
+        raise HTTPException(status_code = 404, detail = "Invalid Email or Password")
+
+    expire_time = datetime.now(timezone.utc) + timedelta(hours = 24)
+    token_data = {
+        "sub": str(existing_user.id),
+        "exp":expire_time
+    }
+
+    secret_key = os.getenv("JWT_SECRET")
+    token = jwt.encode(token_data, secret_key, algorithm = "HS256")
+
+    return {"access_token": token, "token_type":"bearer"}
+
 
 
 client = genai.Client()

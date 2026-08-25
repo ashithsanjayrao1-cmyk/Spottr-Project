@@ -8,7 +8,7 @@ class User(Base):
     email = Column(String(255),unique = True, index = True) 
     password_hash = Column(String(255))
 
-    profile = relationship("profile", back_populates = "owner", uselist = False)
+    profile = relationship("Profile", back_populates = "owner", uselist = False)
     workout_plans = relationship("WorkoutPlan", back_populates= "owner")
 
 class Profile(Base):
@@ -27,7 +27,7 @@ class Profile(Base):
     experience_level = Column(String(100))
     dietary_preferences = Column(String(500))
 
-    owner = relationship("User", back_populates = "profiles")
+    owner = relationship("User", back_populates = "profile")
 
 class WorkoutPlan(Base):
     __tablename__ = "workout_plans"

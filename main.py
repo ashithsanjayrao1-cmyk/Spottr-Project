@@ -1,10 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 from google import genai
 from google.genai import types
 import os
 from dotenv import load_dotenv
-from database import engine
+from passlib.context import CryptContext
+from database import engine, get_db
 import models
 
 
@@ -13,6 +15,30 @@ load_dotenv()
 app = FastAPI(title = "Spottr")
 
 models.Base.metadata.create_all(bind = engine)
+
+
+#client = genai.Client()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/register")
+def register_user(user: UserCreate, db: Session = Depends (get_db)):
+    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code = 400, detail = "Email already registered" )
+
+    hashed_password = pwd_context.hash(user.password)
+
+    new_user = models.User(email = user.email, password_hash = hashed_password)
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return{"message": "User created Successfully!","user_id": new_user.id}
 
 
 client = genai.Client()

@@ -1,0 +1,9 @@
+# Ignore environment variables / secrets
+.env
+
+# Ignore the virtual environment folder (it's too big and only for your local machine)
+venv3/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc   

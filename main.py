@@ -4,11 +4,15 @@ from google import genai
 from google.genai import types
 import os
 from dotenv import load_dotenv
+from database import engine
+import models
 
 
 load_dotenv()
 
 app = FastAPI(title = "Spottr")
+
+models.Base.metadata.create_all(bind = engine)
 
 
 client = genai.Client()

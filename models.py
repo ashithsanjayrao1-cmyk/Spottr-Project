@@ -1,6 +1,9 @@
 from sqlalchemy import Column,Integer,String,Float,ForeignKey,JSON,Text
 from sqlalchemy.orm import relationship
 from database import Base
+from datetime import datetime, timezone
+from sqlalchemy import DateTime, Float
+
 
 class User(Base):
     __tablename__ = "users"
@@ -73,3 +76,29 @@ class DietTarget(Base):
     daily_checklist = Column(Text) 
     
     plan = relationship("FitnessPlan", back_populates="diet")
+
+
+class WorkoutLog(Base):
+    __tablename__ = "workout_logs"
+
+    id = Column(Integer, primary_key = True, index = True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    date = Column(DateTime, default = lambda: datetime.now(timezone.utc))
+    workout_name = Column(String(100))
+    duration_minutes = Column(Integer)
+
+    exercises = relationship("ExerciseLog", back_populates = "workout")
+
+class ExerciseLog(Base):
+    __tablename__ = "exercise_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workout_id = Column(Integer, ForeignKey("workout_logs.id"))
+    exercise_name = Column(String(100))
+    sets = Column(Integer)
+    reps = Column(Integer)
+    weight_kg = Column(Float)
+    
+    workout = relationship("WorkoutLog", back_populates="exercises")
+
+

@@ -11,6 +11,11 @@ import models
 import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from typing import List
+
+
+
+
 
 
 
@@ -26,6 +31,19 @@ models.Base.metadata.create_all(bind = engine)
 client = genai.Client()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
+
+
+class ExerciseCreate(BaseModel):
+    exercise_name: str
+    sets: int
+    reps: int
+    weight_kg: float
+
+class WorkoutLogCreate(BaseModel):
+    workout_name: str
+    duration_minutes: int
+    exercises: List[ExerciseCreate]
+
 
 class UserCreate(BaseModel):
     email: str
@@ -237,3 +255,38 @@ def generate_ai_plan(
         "ai_plan": ai_data
 
     }
+
+
+@app.post("/api/workouts/log")
+def log_workout(
+    request: WorkoutLogCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    new_workout = models.WorkoutLog(
+        user_id=current_user.id,
+        workout_name=request.workout_name,
+        duration_minutes=request.duration_minutes
+    )
+    db.add(new_workout)
+    db.commit()
+    db.refresh(new_workout)
+
+    for exercise in request.exercises:
+        new_exercise = models.ExerciseLog(
+            workout_id=new_workout.id,
+            exercise_name=exercise.exercise_name,
+            sets=exercise.sets,
+            reps=exercise.reps,
+            weight_kg=exercise.weight_kg
+        )
+        db.add(new_exercise)
+
+    db.commit()
+    
+    return {
+        "message": "Workout completely logged!", 
+        "workout_id": new_workout.id
+    }
+

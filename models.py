@@ -1,4 +1,4 @@
-from sqlalchemy import Column,Integer,String,Float,ForeignKey,JSON
+from sqlalchemy import Column,Integer,String,Float,ForeignKey,JSON,Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -41,5 +41,35 @@ class WorkoutPlan(Base):
 
     owner = relationship("User", back_populates = "workout_plans")
 
+class FitnessPlan(Base):
+    __tablename__ = "fitness_plans"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    phase = Column(String(100))
+    
+    workouts = relationship("WorkoutDay", back_populates="plan")
+    diet = relationship("DietTarget", uselist=False, back_populates="plan")
 
+class WorkoutDay(Base):
+    __tablename__ = "workout_days"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("fitness_plans.id"))
+    day = Column(String(50))
+    focus = Column(String(100))
+    exercises = Column(Text) 
+    notes = Column(Text)
+    
+    plan = relationship("FitnessPlan", back_populates="workouts")
 
+class DietTarget(Base):
+    __tablename__ = "diet_targets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("fitness_plans.id"))
+    target_calories = Column(Integer)
+    protein_grams = Column(Integer)
+    daily_checklist = Column(Text) 
+    
+    plan = relationship("FitnessPlan", back_populates="diet")

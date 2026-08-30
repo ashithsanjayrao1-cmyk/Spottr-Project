@@ -10,7 +10,8 @@ from database import engine, get_db
 import models
 import jwt
 from datetime import datetime, timedelta, timezone
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+
 
 
 
@@ -50,25 +51,26 @@ class USerLogin(BaseModel):
     email: str
     password: str
 
+
 @app.post("/api/auth/login")
-def login_user(user: USerLogin, db: Session = Depends(get_db)):
+def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    
+  
+    existing_user = db.query(models.User).filter(models.User.email == form_data.username).first()
 
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if not existing_user or not pwd_context.verify(form_data.password, existing_user.password_hash):
+        raise HTTPException(status_code=404, detail="Invalid Email or Password")
 
-
-    if not existing_user or not pwd_context.verify(user.password, existing_user.password_hash):
-        raise HTTPException(status_code = 404, detail = "Invalid Email or Password")
-
-    expire_time = datetime.now(timezone.utc) + timedelta(hours = 24)
+    expire_time = datetime.now(timezone.utc) + timedelta(hours=24)
     token_data = {
         "sub": str(existing_user.id),
-        "exp":expire_time
+        "exp": expire_time
     }
 
     secret_key = os.getenv("JWT_SECRET")
-    token = jwt.encode(token_data, secret_key, algorithm = "HS256")
+    token = jwt.encode(token_data, secret_key, algorithm="HS256")
 
-    return {"access_token": token, "token_type":"bearer"}
+    return {"access_token": token, "token_type": "bearer"}
 
 class ProfileCreate(BaseModel):
     name: str
@@ -147,7 +149,7 @@ class DailyWorkout(BaseModel):
 
 class DietPlan(BaseModel):
     target_calories: int
-    protien_grams: int
+    protein_grams: int
     daily_checklist: list[str] = Field(description="Specific Dietary Requirements") 
 
 class AICoachResponse(BaseModel):
@@ -168,7 +170,11 @@ class AIRequest(BaseModel):
 
 
 @app.post("/api/ai/generate-plan")
-async def generate_ai_plan(request: AIRequest):
+def generate_ai_plan(
+    request: AIRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     system_instruction = """
     You are an elite fitness AI coach for the Spottr app.
     Generate highly personalized workout splits and daily macro plans based on the user's metrics.
@@ -176,8 +182,8 @@ async def generate_ai_plan(request: AIRequest):
 
     user_prompt = f"""
     Generate a {request.days_per_week}-day workout split and daily macro plan for a user with these stats:
-    -Biometrics: {request.age} year old {request.gender},{request.weight_in_kg}kg,{request.heigh_in_cm} cm  
-    -Current phase: {request.phase}(Calculate calories/macros specifically for this goal)
+    - Biometrics: {request.age} year old {request.gender}, {request.weight_in_kg}kg, {request.height_in_cm}cm  
+    - Current phase: {request.phase} (Calculate calories/macros specifically for this goal)
     - Primary Goal: {request.primary_goal}
     - Experience Level: {request.experience_level}
     - Dietary Requirements: {request.dietary_preferences}
@@ -185,7 +191,7 @@ async def generate_ai_plan(request: AIRequest):
     """
 
     response = client.models.generate_content(
-        model = "gemini-2.5-flash",
+        model = "gemini-3.6-flash",
         contents = user_prompt,
         config = types.GenerateContentConfig(
             system_instruction = system_instruction,
@@ -194,4 +200,40 @@ async def generate_ai_plan(request: AIRequest):
         )
     )
 
-    return{"status":"success","ai_plan": response.parsed}
+    ai_data = response.parsed
+
+    new_plan = models.FitnessPlan(
+        user_id = current_user.id,
+        phase = request.phase
+    )
+    db.add(new_plan)
+    db.commit()
+    db.refresh(new_plan)
+
+
+    for workout in ai_data.workout_split:
+        new_workout = models.WorkoutDay(
+            plan_id = new_plan.id,
+            day = workout.day,
+            focus = workout.focus,
+            exercises = ", ".join(workout.exercises),
+            notes = workout.notes
+        )
+        db.add(new_workout)
+
+    new_diet = models.DietTarget(
+        plan_id=new_plan.id,
+        target_calories=ai_data.nutrition_targets.target_calories,
+        protein_grams=ai_data.nutrition_targets.protein_grams,
+        daily_checklist=", ".join(ai_data.nutrition_targets.daily_checklist)
+    )
+    db.add(new_diet)
+
+    db.commit()
+
+    return{
+        "message": "Plan generated and saved successfully!", 
+        "plan_id": new_plan.id,
+        "ai_plan": ai_data
+
+    }

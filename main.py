@@ -302,3 +302,23 @@ def get_workout_history(
    ).order_by(models.WorkoutLog.date.desc()).all()
 
     return workouts
+
+
+@app.get("/api/fitness-plan.current")
+
+def get_current_plan(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    plan = db.query(models.FitnessPlan).filter(
+        models.FitnessPlan.user_id == current_user.id
+    ).order_by(models.FitnessPlan.id.desc()).first()
+
+
+    if not plan:
+        raise HTTPException(status_code = 404, detail = "No Fitness Plan Found" )
+
+    return plan 
+
+
+

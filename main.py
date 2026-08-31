@@ -290,3 +290,15 @@ def log_workout(
         "workout_id": new_workout.id
     }
 
+
+@app.post("/api/workouts/history")
+def get_workout_history(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    workouts=db.query(models.WorkoutLog).filter(
+        models.WorkoutLog.user_id == current_user.id
+
+   ).order_by(models.WorkoutLog.date.desc()).all()
+
+    return workouts
